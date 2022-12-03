@@ -7,6 +7,7 @@
 #include "slang/ast/ASTVisitor.h"
 #include "slang/diagnostics/TextDiagnosticClient.h"
 #include "slang/driver/Driver.h"
+#include <filesystem>
 
 namespace hgdb::rtl {
 
@@ -182,17 +183,21 @@ public:
         auto const &value = sym.value();
         auto const &selector = sym.selector();
 
+        value.visit(*this);
+
         // depends on whether the selector is a constant or not
         std::optional<uint64_t> select_value;
         if (selector.constant) {
             auto const &v = *selector.constant;
             select_value = get_constant_value(v);
-        }
-        value.visit(*this);
-        if (select_value) {
-            ss_ << '[' << *select_value << ']';
+            if (select_value) {
+                ss_ << '[' << *select_value << ']';
+            } else {
+                throw NotSupportedException("Only integer selection is supported", loc_);
+            }
         } else {
-            throw NotSupportedException("Only integer selection is supported", loc_);
+            ss_ << ".";
+            selector.visit(*this);
         }
     }
 
@@ -230,17 +235,31 @@ public:
 
     void handle(const slang::ast::InstanceSymbol &inst) {
         auto const *def = &inst.getDefinition();
+        auto *parent_module = current_module_;
+
+        if (parent_module) {
+            parent_module->add_instance(std::string(inst.name), parent_module);
+        }
+
         // only visit unique definition
         if (definitions_.find(def) != definitions_.end()) return;
         definitions_.emplace(def);
 
-        current_module_ = table_.add_module(std::string(inst.name));
+        current_module_ = table_.add_module(std::string(def->name));
+        auto *temp_current_scope_ = current_scope_;
+        auto *temp_root_scope_ = root_scope_;
         // to make things easier, everything is wrapped in a single scope
         current_scope_ = current_module_->create_scope<hgdb::json::Scope<>>();
-        current_scope_->filename = std::string(sm_.getFileName(inst.location));
+        auto filename = std::string(sm_.getFileName(inst.location));
+        filename = std::filesystem::absolute(filename).string();
+        current_scope_->filename = std::string(filename);
         root_scope_ = current_scope_;
 
         visitDefault(inst);
+        // reset
+        current_module_ = parent_module;
+        current_scope_ = temp_current_scope_;
+        root_scope_ = temp_root_scope_;
     }
 
     void handle(const slang::ast::NetSymbol &net) {
@@ -256,8 +275,7 @@ public:
             current_module_->add_variable(v);
         } else {
             // it's a "declare" in some blocks
-            auto line = sm_.getLineNumber(var.location);
-            current_scope_->create_scope<hgdb::json::VarStmt>(v, line, true);
+            // we don't support this rn
         }
     }
 
@@ -275,6 +293,7 @@ public:
                 json::Variable v;
                 v.name = p.str();
                 v.value = v.name;
+                v.rtl = true;
                 current_scope_->create_scope<hgdb::json::VarStmt>(v, line, false);
                 handled = true;
             } catch (NotSupportedException &) {
@@ -310,7 +329,8 @@ public:
     void handle(const slang::ast::StatementBlockSymbol &block) {
         auto *temp = current_scope_;
         auto line = sm_.getLineNumber(block.location);
-        current_scope_->template create_scope<hgdb::json::Scope<std::nullptr_t>>(line);
+        current_scope_ =
+            current_scope_->template create_scope<hgdb::json::Scope<std::nullptr_t>>(line);
         if (!current_condition_.empty()) {
             current_scope_->condition = std::move(current_condition_);
         }
@@ -395,9 +415,10 @@ void SymbolTableGenerator::output() {
 
     Serializer serializer(table, driver.sourceManager);
     auto instances = compilation->getRoot().topInstances;
-    for (auto *instance: instances) {
+    for (auto *instance : instances) {
         instance->visit(serializer);
     }
+    table.compress();
 
     std::string output;
 
