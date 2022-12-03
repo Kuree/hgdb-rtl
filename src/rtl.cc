@@ -231,7 +231,7 @@ public:
     void handle(const slang::ast::InstanceSymbol &inst) {
         auto const *def = &inst.getDefinition();
         // only visit unique definition
-        if (definitions_.find(def) == definitions_.end()) return;
+        if (definitions_.find(def) != definitions_.end()) return;
         definitions_.emplace(def);
 
         current_module_ = table_.add_module(std::string(inst.name));
@@ -374,11 +374,19 @@ private:
 void SymbolTableGenerator::output() {
     slang::driver::Driver driver;
     std::optional<std::string> filename;
+    std::optional<bool> show_help;
     driver.addStandardArgs();
     driver.cmdLine.add("-o", filename, "Output symbol table file");
+    driver.cmdLine.add("-h,--help", show_help, "Display available options");
     bool res = driver.parseCommandLine(static_cast<int>(commandline_args_.size()),
                                        commandline_args_.data());
     if (!res) return;
+    if (show_help == true) {
+        slang::OS::print(
+            fmt::format("{}", driver.cmdLine.getHelpText("hgdb-rtl symbol table generator")));
+        return;
+    }
+
     res = driver.parseAllSources();
     if (!res) return;
     auto compilation = driver.createCompilation();
@@ -386,6 +394,10 @@ void SymbolTableGenerator::output() {
     hgdb::json::SymbolTable table("SystemVerilog");
 
     Serializer serializer(table, driver.sourceManager);
+    auto instances = compilation->getRoot().topInstances;
+    for (auto *instance: instances) {
+        instance->visit(serializer);
+    }
 
     std::string output;
 
