@@ -1,5 +1,6 @@
 #include "rtl.hh"
 
+#include <filesystem>
 #include <fstream>
 
 #include "fmt/format.h"
@@ -7,7 +8,6 @@
 #include "slang/ast/ASTVisitor.h"
 #include "slang/diagnostics/TextDiagnosticClient.h"
 #include "slang/driver/Driver.h"
-#include <filesystem>
 
 namespace hgdb::rtl {
 
@@ -261,7 +261,7 @@ public:
         // to make things easier, everything is wrapped in a single scope
         current_scope_ = current_module_->create_scope<hgdb::json::Scope<>>();
         auto filename = std::string(sm_.getFileName(inst.location));
-        filename = std::filesystem::absolute(filename).string();
+        filename = std::filesystem::canonical(std::filesystem::absolute(filename)).string();
         current_scope_->filename = std::string(filename);
         root_scope_ = current_scope_;
 
@@ -327,25 +327,13 @@ public:
         current_condition_ =
             fmt::format("{}", fmt::join(predicate_strs.begin(), predicate_strs.end(), "&&"));
 
-        stmt.ifTrue.visit(*this);
+        visit_block_stmt(&stmt.ifTrue);
 
         if (stmt.ifFalse) {
             current_condition_ =
                 fmt::format("!({})", fmt::join(predicate_strs.begin(), predicate_strs.end(), "&&"));
-            stmt.ifFalse->visit(*this);
+            visit_block_stmt(stmt.ifFalse);
         }
-    }
-
-    void handle(const slang::ast::StatementBlockSymbol &block) {
-        auto *temp = current_scope_;
-        auto line = sm_.getLineNumber(block.location);
-        current_scope_ =
-            current_scope_->template create_scope<hgdb::json::Scope<std::nullptr_t>>(line);
-        if (!current_condition_.empty()) {
-            current_scope_->condition = std::move(current_condition_);
-        }
-        visitDefault(block);
-        current_scope_ = temp;
     }
 
     void handle(const slang::ast::CaseStatement &stmt) {
@@ -378,7 +366,7 @@ public:
             }
             current_condition_ =
                 fmt::format("{0}", fmt::join(values_str.begin(), values_str.end(), " && "));
-            case_.stmt->visit(*this);
+            visit_block_stmt(case_.stmt);
         }
 
         if (stmt.defaultCase) {
@@ -387,8 +375,20 @@ public:
             }
             current_condition_ =
                 fmt::format("{0}", fmt::join(all_conditions.begin(), all_conditions.end(), " && "));
-            stmt.defaultCase->visit(*this);
+            visit_block_stmt(stmt.defaultCase);
         }
+    }
+
+    void visit_block_stmt(const slang::ast::Statement *stmt) {
+        auto *temp = current_scope_;
+        auto line = sm_.getLineNumber(stmt->sourceRange.start());
+        current_scope_ =
+            current_scope_->template create_scope<hgdb::json::Scope<std::nullptr_t>>(line);
+        if (!current_condition_.empty()) {
+            current_scope_->condition = std::move(current_condition_);
+        }
+        stmt->visit(*this);
+        current_scope_ = temp;
     }
 
 private:

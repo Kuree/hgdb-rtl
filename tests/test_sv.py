@@ -25,5 +25,21 @@ def test_hierarchy():
     assert inst["module"] == "child"
 
 
+def test_nested_if():
+    table = get_json("nested_if")
+    top = table["table"][0]
+
+    comb = top["scope"][0]
+    assert comb["filename"] == get_vector_file("nested_if")
+    assert len(comb["scope"]) == 2
+    assert comb["scope"][0]["condition"] == "a"
+    assert comb["scope"][1]["condition"] == "!(a)"
+
+    if_true = comb["scope"][0]["scope"][0]
+    assert if_true["condition"] == "b"
+    if_false = comb["scope"][0]["scope"][1]
+    assert if_false["condition"] == "!(b)"
+
+
 if __name__ == "__main__":
-    test_hierarchy()
+    test_nested_if()
