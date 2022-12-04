@@ -127,8 +127,6 @@ class CMakeBuild(build_ext):
         bins = ["hgdb-rtl"]
         binaries = [os.path.join(self.build_temp, "hgdb-rtl", "tools", name) for name in bins]
         for binary in binaries:
-            print(binary)
-            print(extdir)
             assert os.path.isfile(binary)
             shutil.copy(binary, extdir)
 
