@@ -1,0 +1,40 @@
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+    if: "!contains(github.event.head_commit.message, 'skip test')"
+
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        submodules: true
+    - name: Install Python packages
+      shell: bash
+      run: pip3 install wheel wheeltools pytest
+    - name: Build wheel
+      shell: bash
+      run: python3 setup.py build_ext -j 4 bdist_wheel
+    - name: Fix wheel
+      shell: bash
+      run: |
+        wget https://github.com/Kuree/hgdb/raw/master/scripts/fix_wheel.py
+        mkdir -p wheelhouse
+        python3 fix_wheel.py dist/*.whl -w wheelhouse
+    - name: Install Python packages
+      shell: bash
+      run: pip3 install --no-index --find-links=wheelhouse hgdb-rtl
+    - name: Show help
+      shell: bash
+      run: hgdb-rtl -h
+    - name: Upload wheel
+      uses: actions/upload-artifact@v2
+      with:
+        name: hgdb-rtl
+        path: wheelhouse/
+    - name: Tests
+      shell: bash
+      run: python3 -m pytest tests/ -v
