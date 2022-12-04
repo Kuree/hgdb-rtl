@@ -1,0 +1,19 @@
+#!/usr/bin/env python
+
+import os
+import subprocess
+import site
+import sys
+
+# find the lib
+bin_path = ""
+paths = site.getsitepackages()
+for path in paths:
+    p = os.path.join(path, "hgdb-rtl")
+    if os.path.exists(p) :
+        bin_path = p
+        break
+if len(bin_path) == 0:
+    print("Unable to find hgdb-rtl in path", file=sys.stderr)
+    exit(1)
+exit(subprocess.call([bin_path] + sys.argv[1:]))
