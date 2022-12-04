@@ -28,7 +28,6 @@ def test_hierarchy():
 def test_nested_if():
     table = get_json("nested_if")
     top = table["table"][0]
-
     comb = top["scope"][0]
     assert comb["filename"] == get_vector_file("nested_if")
     assert len(comb["scope"]) == 2
@@ -41,5 +40,13 @@ def test_nested_if():
     assert if_false["condition"] == "!(b)"
 
 
+def test_nested_case():
+    table = get_json("nested_case")
+    top = table["table"][0]
+    comb = top["scope"][0]
+    inner_case = comb["scope"][0]["scope"][-1]
+    assert inner_case["condition"] == "(b == 1)"
+
+
 if __name__ == "__main__":
-    test_nested_if()
+    test_nested_case()
