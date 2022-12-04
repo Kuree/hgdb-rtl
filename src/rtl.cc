@@ -55,7 +55,7 @@ public:
 
     void handle(const slang::ast::ValueSymbol &sym) { ss_ << sym.name; }
 
-    void handle(const slang::ast::ConversionExpression &c) { visitDefault(c.operand()); }
+    void handle(const slang::ast::ConversionExpression &c) { c.operand().visit(*this); }
 
     void handle(const slang::ast::LValueReferenceExpression &) {
         throw NotSupportedException("LValueReferenceExpression not supported for hgdb", loc_);
@@ -362,7 +362,7 @@ public:
                 }
             }
             for (auto &s : values_str) {
-                s = fmt::format("({0} == {1})", s, target_str);
+                s = fmt::format("({0} == {1})", target_str, s);
             }
             current_condition_ =
                 fmt::format("{0}", fmt::join(values_str.begin(), values_str.end(), " && "));
