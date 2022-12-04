@@ -235,17 +235,27 @@ public:
 
     void handle(const slang::ast::InstanceSymbol &inst) {
         auto const *def = &inst.getDefinition();
+        hgdb::json::Module *inst_module = nullptr;
+        auto visited = definitions_.find(def->name) != definitions_.end();
+        if (!visited) {
+            inst_module = table_.add_module(std::string(def->name));
+        } else {
+            inst_module = def_module_mapping_.at(def->name);
+        }
+
         auto *parent_module = current_module_;
 
         if (parent_module) {
-            parent_module->add_instance(std::string(inst.name), parent_module);
+            parent_module->add_instance(std::string(inst.name), inst_module);
         }
 
         // only visit unique definition
-        if (definitions_.find(def) != definitions_.end()) return;
-        definitions_.emplace(def);
+        if (visited) return;
+        definitions_.emplace(def->name);
 
-        current_module_ = table_.add_module(std::string(def->name));
+        current_module_ = inst_module;
+        def_module_mapping_.emplace(def->name, current_module_);
+
         auto *temp_current_scope_ = current_scope_;
         auto *temp_root_scope_ = root_scope_;
         // to make things easier, everything is wrapped in a single scope
@@ -387,8 +397,11 @@ private:
     hgdb::json::Scope<std::nullptr_t> *current_scope_ = nullptr;
     hgdb::json::ScopeBase *root_scope_ = nullptr;
     hgdb::json::Module *current_module_ = nullptr;
-    std::unordered_set<const slang::ast::Definition *> definitions_;
+    std::unordered_set<std::string_view> definitions_;
     std::string current_condition_;
+
+    // hgdb implementation doesn't care about naming. track it here
+    std::unordered_map<std::string_view, hgdb::json::Module *> def_module_mapping_;
 };
 
 void SymbolTableGenerator::output() {
@@ -429,11 +442,15 @@ void SymbolTableGenerator::output() {
     }
 
     if (filename) {
-        std::ofstream stream(*filename);
-        if (!stream.bad()) {
-            stream << output;
+        if (filename == "-") {
+            slang::OS::print(output);
+        } else {
+            std::ofstream stream(*filename);
+            if (!stream.bad()) {
+                stream << output;
+            }
+            stream.close();
         }
-        stream.close();
     }
 }
 
