@@ -131,7 +131,7 @@ class CMakeBuild(build_ext):
             shutil.copy(binary, extdir)
 
 
-with open(os.path.join(os.path.dirname(__file__), "README.rst")) as f:
+with open(os.path.join(os.path.dirname(__file__), "README.md")) as f:
     long_description = f.read()
 
 # The information here can also be placed in setup.cfg - better separation of
@@ -143,6 +143,7 @@ setup(
     author_email="keyi@cs.stanford.edu",
     description="Creating HGDB symbol table from RTL",
     long_description=long_description,
+    long_description_content_type="text/markdown",
     ext_modules=[CMakeExtension("hgdb-rtl")],
     cmdclass={"build_ext": CMakeBuild},
     zip_safe=False,
