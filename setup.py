@@ -141,6 +141,7 @@ setup(
     version="0.0.1",
     author="Keyi Zhang",
     author_email="keyi@cs.stanford.edu",
+    url="https://github.com/Kuree/hgdb-rtl",
     description="Creating HGDB symbol table from RTL",
     long_description=long_description,
     long_description_content_type="text/markdown",
