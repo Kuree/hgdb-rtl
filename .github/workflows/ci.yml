@@ -14,10 +14,13 @@ jobs:
         submodules: true
     - name: Install Python packages
       shell: bash
-      run: pip3 install wheel wheeltools pytest
+      run: pip3 install pytest wheelhouse wheeltools
+    - name: Start docker container
+      shell: bash
+      run: docker run --name manylinux -v `pwd`:/workspace -it -d quay.io/pypa/manylinux2014_x86_64 bash
     - name: Build wheel
       shell: bash
-      run: python3 setup.py build_ext -j 4 bdist_wheel
+      run: docker exec -i manylinux bash -c "cd /workspace && /opt/python/cp310-cp310/bin/python setup.py build_ext -j 4 bdist_wheel"
     - name: Fix wheel
       shell: bash
       run: |
@@ -27,9 +30,6 @@ jobs:
     - name: Install Python packages
       shell: bash
       run: pip3 install --no-index --find-links=wheelhouse hgdb-rtl
-    - name: Show help
-      shell: bash
-      run: hgdb-rtl -h
     - name: Upload wheel
       uses: actions/upload-artifact@v2
       with:
@@ -37,4 +37,7 @@ jobs:
         path: wheelhouse/
     - name: Tests
       shell: bash
-      run: python3 -m pytest tests/ -v
+      run: |
+        docker run --name test -v `pwd`:/workspace -it -d python:3.10 bash
+        docker exec -i test bash -c "pip install pytest /workspace/wheelhouse/*.whl"
+        docker exec -i test bash -c "cd /workspace && pytest tests/ -v"
