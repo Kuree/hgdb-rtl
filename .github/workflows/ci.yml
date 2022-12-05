@@ -41,3 +41,9 @@ jobs:
         docker run --name test -v `pwd`:/workspace -it -d python:3.10 bash
         docker exec -i test bash -c "pip install pytest /workspace/wheelhouse/*.whl"
         docker exec -i test bash -c "cd /workspace && pytest tests/ -v"
+    - name: Publish wheels to PyPI
+      uses: pypa/gh-action-pypi-publish@release/v1
+      if: startsWith(github.ref, 'refs/tags')
+      with:
+        password: ${{ secrets.PYPI_API_TOKEN }}
+        packages_dir: wheelhouse
